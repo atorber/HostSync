@@ -1,0 +1,15 @@
+{
+  "name": "hostsync",
+  "private": true,
+  "workspaces": [
+    "cli",
+    "web-ui"
+  ],
+  "scripts": {
+    "build": "npm -w web-ui run build && npm -w cli run build",
+    "dev:web": "npm -w web-ui run dev",
+    "dev:cli": "npm -w cli run dev",
+    "typecheck": "npm -w web-ui run typecheck && npm -w cli run typecheck"
+  }
+}
+
