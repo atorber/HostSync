@@ -95,8 +95,7 @@ node cli/dist/index.js web --port 3000
 ```bash
 npm run dev:cli -- push
 npm run dev:cli -- pull
-
-
+npm run dev:cli -- web --port 3000
 ```
 
 远端对象结构示例：
@@ -182,14 +181,6 @@ bucket/
 hostsync web --port 3000
 ```
 
-如果提示端口占用（`EADDRINUSE`），可以：
-
-```bash
-hostsync web --port 3001
-# 或让系统自动选择空闲端口
-hostsync web --port 0
-```
-
 终端会输出：
 
 - 访问地址：`http://127.0.0.1:3000`
@@ -215,8 +206,6 @@ CLI 开发：
 ```bash
 npm run dev:cli
 ```
-
-> 如果你在开发模式下要启动内置 Web（`hostsync web`），它会托管 `web-ui/dist` 静态产物，因此需要先执行一次 `npm run build`（或 `npm -w web-ui run build`）。
 
 ## 常见问题（排错）
 

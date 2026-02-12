@@ -18,7 +18,21 @@ export class ApiClient {
 
     const res = await fetch(path, { ...init, headers });
     if (res.status === 401) throw new Error('unauthorized');
-    if (!res.ok) throw new Error(`http ${res.status}`);
+    if (!res.ok) {
+      let detail = '';
+      try {
+        const data = (await res.json()) as any;
+        const code = data?.code ? String(data.code) : '';
+        const msg = data?.message ? String(data.message) : '';
+        const hints = Array.isArray(data?.hints) ? data.hints.map((h: any) => String(h)).slice(0, 3) : [];
+        const parts = [code && `code=${code}`, msg && `msg=${msg}`].filter(Boolean).join(' ');
+        const hintText = hints.length ? ` hints=${hints.join(' | ')}` : '';
+        detail = parts || hintText ? ` (${parts}${hintText})` : '';
+      } catch {
+        // ignore
+      }
+      throw new Error(`http ${res.status}${detail}`);
+    }
     return (await res.json()) as T;
   }
 
