@@ -82,6 +82,9 @@ out
 .nuxt
 dist
 
+# npm 发布时打包进 cli 的 web-ui 构建产物
+cli/web-dist
+
 # Gatsby files
 .cache/
 # Comment in the public line in if your project uses Gatsby and not Next.js

@@ -46,13 +46,14 @@ function getBearerToken(req: express.Request): string | undefined {
 async function findWebUiDist(): Promise<string> {
   /**
    * 兼容多种运行方式：
-   * - 构建后运行：node cli/dist/index.js（__dirname 在 cli/dist/**）
-   * - 开发运行：tsx cli/src/index.ts（__dirname 在 cli/src/**，且 cwd 往往是 cli/）
-   *
-   * 因此同时尝试基于 __dirname 与 cwd 的多组候选路径。
+   * - npm 全局安装后：__dirname 在 <pkg>/dist/，web-dist 在 <pkg>/web-dist/
+   * - 构建后运行：node cli/dist/index.js（__dirname 在 cli/dist/）
+   * - 开发运行：tsx cli/src/index.ts（__dirname 在 cli/src/）
    */
   const candidates = [
-    // build: cli/dist/commands -> ../../web-ui/dist
+    // npm 包内：cli/dist -> ../web-dist
+    path.resolve(__dirname, '../web-dist'),
+    // monorepo build: cli/dist -> ../../web-ui/dist
     path.resolve(__dirname, '../../web-ui/dist'),
     // dev: cli/src/commands -> ../../../web-ui/dist
     path.resolve(__dirname, '../../../web-ui/dist'),
