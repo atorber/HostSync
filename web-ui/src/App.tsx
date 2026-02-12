@@ -202,9 +202,10 @@ type ViewerProps = {
   loading: boolean;
   error: string | null;
   onDownload: () => void;
+  onCopyCli: () => void;
 };
 
-function Viewer({ host, keyName, file, loading, error, onDownload }: ViewerProps) {
+function Viewer({ host, keyName, file, loading, error, onDownload, onCopyCli }: ViewerProps) {
   const lang = keyName ? languageFromKey(keyName) : 'text';
 
   return (
@@ -233,6 +234,9 @@ function Viewer({ host, keyName, file, loading, error, onDownload }: ViewerProps
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 {file.truncated && <span className="pill">已截断</span>}
+                <button className="btn" onClick={onCopyCli} title="复制可一键下载当前文件的 CLI 命令">
+                  复制CLI命令
+                </button>
                 <button className="btn btn-primary" onClick={onDownload}>
                   下载
                 </button>
@@ -397,6 +401,39 @@ export function App() {
     }
   };
 
+  const copyCliForActive = async () => {
+    if (!activeKey) return;
+    const cmd = `hostsync pull --key ${JSON.stringify(activeKey)}`;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(cmd);
+        setGlobalError(null);
+        return;
+      }
+    } catch {
+      // fallback below
+    }
+
+    // fallback：兼容非 HTTPS / 权限受限的 clipboard API
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = cmd;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      ta.style.top = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand('copy');
+      ta.remove();
+      if (!ok) throw new Error('复制失败');
+      setGlobalError(null);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setGlobalError(`复制失败：${msg}`);
+    }
+  };
+
   return (
     <div className="app">
       <div className="topbar">
@@ -443,6 +480,7 @@ export function App() {
           loading={fileLoading}
           error={fileError ?? globalError}
           onDownload={downloadActive}
+          onCopyCli={copyCliForActive}
         />
       </div>
 

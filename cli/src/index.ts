@@ -2,6 +2,8 @@ import { Command } from 'commander';
 import { initCommand } from './commands/init';
 import { pushCommand } from './commands/push';
 import { pullCommand } from './commands/pull';
+import { listCommand } from './commands/list';
+import { scanCommand } from './commands/scan';
 import { webCommand } from './commands/web';
 
 const program = new Command();
@@ -14,6 +16,8 @@ program
 program.addCommand(initCommand);
 program.addCommand(pushCommand);
 program.addCommand(pullCommand);
+program.addCommand(listCommand);
+program.addCommand(scanCommand);
 program.addCommand(webCommand);
 
 program.parseAsync(process.argv).catch((err) => {

@@ -9,6 +9,7 @@
 - **忽略规则**：读取当前目录的 `.cfgignore`（语法同 `.gitignore`）
 - **Web UI 安全**：仅绑定 `127.0.0.1` + 启动时生成 **5 分钟有效 Token**
 - **对象存储**：对接 **S3 兼容 API** 的云对象存储（主流云厂商通常提供 S3 兼容网关/接口）
+- **AI 配置扫描**：自动发现 15+ 种 AI 编码工具配置文件（Claude Code、Cursor、Codex、Copilot 等），一键推送
 
 ## 安装依赖 & 构建
 
@@ -75,6 +76,12 @@ hostsync pull .env
 # 或使用显式参数
 hostsync push --file "config/app.yaml"
 hostsync pull --file "config/app.yaml"
+
+# 从对象存储中按完整 key 拉取任意文件到当前目录
+hostsync pull --key "<hostname>/Users/me/.claude/settings.json"
+
+# 并指定保存路径（相对于当前目录）
+hostsync pull --key "<hostname>/Users/me/.claude/settings.json" --as "claude/settings.json"
 ```
 
 ### 运行方式说明（当前仓库内）
@@ -95,8 +102,8 @@ node cli/dist/index.js web --port 3000
 ```bash
 npm run dev:cli -- push
 npm run dev:cli -- pull
-
-
+npm run dev:cli -- scan
+npm run dev:cli -- scan --push --yes
 ```
 
 远端对象结构示例：
@@ -147,6 +154,54 @@ bucket/
 ### 忽略规则（`.cfgignore`）
 
 在要同步的目录下放置 `.cfgignore`，语法与 `.gitignore` 相同。项目根目录自带了一个示例 `.cfgignore`，你可以按需复制/扩展。
+
+### 扫描 AI 工具配置文件
+
+`hostsync scan` 可自动发现当前项目和用户主目录下知名 AI 编码工具的配置文件：
+
+```bash
+# 扫描项目目录 + 用户主目录
+hostsync scan
+
+# 仅扫描项目目录
+hostsync scan --project-only
+
+# 仅扫描用户主目录
+hostsync scan --home-only
+
+# 仅扫描指定工具
+hostsync scan --tool cursor
+
+# JSON 格式输出
+hostsync scan --json
+
+# 发现后直接推送到 S3
+hostsync scan --push
+
+# 跳过确认提示
+hostsync scan --push --yes
+```
+
+**支持的 AI 工具（15 种）：**
+
+| 工具 | 项目级配置 | 全局配置 |
+|------|-----------|---------|
+| Claude Code | `CLAUDE.md`, `.claude/` | `~/.claude/` |
+| Codex (OpenAI) | `AGENTS.md`, `AGENTS.override.md` | `~/.codex/config.toml` |
+| Cursor | `.cursorrules`, `.cursor/rules/` | — |
+| GitHub Copilot | `.github/copilot-instructions.md`, `.github/instructions/` | — |
+| Windsurf | `.windsurfrules`, `.windsurf/rules/` | — |
+| Aider | `.aider.conf.yml`, `CONVENTIONS.md` | `~/.aider.conf.yml` |
+| Continue.dev | `.continuerc.json`, `.continue/rules/` | `~/.continue/config.yaml` |
+| Cline | `.clinerules/` | — |
+| Gemini | `GEMINI.md` | `~/.gemini/` |
+| Zed | `.rules` | — |
+| JetBrains Junie | `.junie/guidelines.md` | — |
+| Amazon Q | `.amazonq/rules/` | — |
+| Roo Code | `.roo/`, `.roorules`, `.roomodes` | — |
+| Augment | `.augment/` | — |
+
+使用 `--push` 时，项目级文件按标准前缀 `{hostname}/{cwd}/` 上传；全局文件也会按**本机实际绝对路径**分层（与 `push` 一致），例如：`{hostname}/Users/<name>/.claude/settings.json`。
 
 ### 建议的最小权限（参考 AWS IAM 命名）
 

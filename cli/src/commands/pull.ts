@@ -28,11 +28,45 @@ export const pullCommand = new Command('pull')
   .description('从 S3 拉取文件（按 hostname + 绝对路径分层）')
   .argument('[file]', '仅同步单个文件（相对当前目录或绝对路径；会写回到当前目录内对应位置）')
   .option('-f, --file <file>', '仅同步单个文件（同 [file]）')
+  .option('--key <key>', '按对象存储中的完整 key 拉取任意单个文件（下载到当前目录）')
+  .option('--as <path>', '与 --key 配合：保存为当前目录下的指定相对路径（默认使用 key 的文件名）')
   .option('--dry-run', '仅打印将要下载的文件，不实际写入', false)
-  .action(async (fileArg: string | undefined, options: { dryRun?: boolean; file?: string }) => {
+  .action(
+    async (
+      fileArg: string | undefined,
+      options: { dryRun?: boolean; file?: string; key?: string; as?: string },
+    ) => {
     const cwd = process.cwd();
     const config = await loadConfig();
     const client = createS3Client(config);
+
+    const keyMode = options.key?.trim();
+    if (keyMode) {
+      if (keyMode.includes('\0')) throw new Error('非法 key：包含空字符');
+      if (keyMode.endsWith('/')) throw new Error(`非法 key（看起来像目录）：${keyMode}`);
+
+      const defaultName = keyMode.split('/').filter(Boolean).at(-1);
+      if (!defaultName) throw new Error(`非法 key：${keyMode}`);
+
+      const localRel = (options.as ?? defaultName).trim();
+      if (!localRel || localRel === '.' || localRel === '..') throw new Error('请指定有效的本地文件名。');
+      if (path.isAbsolute(localRel)) throw new Error(`仅允许写入当前目录内的相对路径：${localRel}`);
+
+      const destAbs = path.resolve(cwd, localRel);
+      ensureInsideCwd(cwd, destAbs);
+
+      if (options.dryRun) {
+        // eslint-disable-next-line no-console
+        console.log(`将下载：s3://${config.bucket}/${keyMode} → ${localRel}`);
+        return;
+      }
+
+      await fs.mkdir(path.dirname(destAbs), { recursive: true });
+      await downloadFile(client, config.bucket, keyMode, destAbs);
+      // eslint-disable-next-line no-console
+      console.log(`拉取完成：1 个文件 ← s3://${config.bucket}/${keyMode}`);
+      return;
+    }
 
     const prefix = getRemotePrefix(cwd);
     if (!validateRemoteKey(prefix)) throw new Error(`路径校验失败：${prefix}`);
@@ -115,5 +149,6 @@ export const pullCommand = new Command('pull')
 
     // eslint-disable-next-line no-console
     console.log(`拉取完成：${toDownload.length} 个文件 ← s3://${config.bucket}/${prefix}/`);
-  });
+    },
+  );
 

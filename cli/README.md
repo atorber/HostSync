@@ -75,6 +75,12 @@ hostsync pull .env
 # 或使用显式参数
 hostsync push --file "config/app.yaml"
 hostsync pull --file "config/app.yaml"
+
+# 从对象存储中按完整 key 拉取任意文件到当前目录
+hostsync pull --key "<hostname>/Users/me/.claude/settings.json"
+
+# 并指定保存路径（相对于当前目录）
+hostsync pull --key "<hostname>/Users/me/.claude/settings.json" --as "claude/settings.json"
 ```
 
 ### 运行方式说明（当前仓库内）
@@ -96,6 +102,8 @@ node cli/dist/index.js web --port 3000
 npm run dev:cli -- push
 npm run dev:cli -- pull
 npm run dev:cli -- web --port 3000
+npm run dev:cli -- scan
+npm run dev:cli -- scan --push --yes
 ```
 
 远端对象结构示例：
