@@ -67,7 +67,7 @@ function FileTree({ root, activeKey, expanded, onToggleDir, onSelectFile, query,
       <div className="panel-body">
         <input className="search" placeholder="搜索文件名…" value={query} onChange={(e) => onQuery(e.target.value)} />
         <div style={{ height: 10 }} />
-        <div className="tree">{root ? renderNode(root, 0) : <div className="muted">请选择左侧主机</div>}</div>
+        <div className="tree">{root ? renderNode(root, 0) : <div className="muted">请选择左侧目录</div>}</div>
       </div>
     </div>
   );
@@ -236,13 +236,13 @@ export function S3Files({ onError }: Props) {
     <div className="content content-three">
       <div className="panel">
         <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div className="panel-title">主机</div>
+          <div className="panel-title">目录</div>
           <button className="btn btn-primary" onClick={refreshHosts} disabled={loadingHosts} style={{ flexShrink: 0 }}>
             {loadingHosts ? '刷新中…' : '刷新'}
           </button>
         </div>
         <div className="panel-body">
-          <input className="search" placeholder="搜索主机名…" value={hostQuery} onChange={(e) => setHostQuery(e.target.value)} style={{ marginBottom: 10 }} />
+          <input className="search" placeholder="搜索目录名…" value={hostQuery} onChange={(e) => setHostQuery(e.target.value)} style={{ marginBottom: 10 }} />
           <div className="list">
             {filteredHosts.map((h) => (
               <div key={h} className={`item ${activeHost === h ? 'item-active' : ''}`} onClick={() => selectHost(h)} title={h}>

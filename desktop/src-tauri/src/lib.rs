@@ -329,6 +329,23 @@ fn skill_write_content(path: String, content: String) -> Result<(), String> {
 }
 
 // ---------- 配置管理（AI 工具配置扫描） ----------
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ConfigScanProgress {
+    current_tool: String,
+    files_found: usize,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ConfigScanComplete {
+    success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    files: Option<Vec<config_scan::ScannedConfigFile>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+}
+
 #[tauri::command]
 fn config_scan_project(project_root: String) -> Result<Vec<config_scan::ScannedConfigFile>, String> {
     let path = std::path::Path::new(&project_root);
@@ -341,9 +358,35 @@ fn config_scan_home() -> Result<Vec<config_scan::ScannedConfigFile>, String> {
 }
 
 #[tauri::command]
-fn config_scan_all(project_root: Option<String>) -> Result<Vec<config_scan::ScannedConfigFile>, String> {
-    let root = project_root.as_deref().map(std::path::Path::new);
-    Ok(config_scan::scan_all(root))
+fn config_scan_all(app: tauri::AppHandle, project_root: Option<String>) -> Result<(), String> {
+    use std::thread;
+    use tauri::Emitter;
+
+    let root = project_root.clone();
+    thread::spawn(move || {
+        let app_progress = app.clone();
+        let result = config_scan::scan_all_with_progress(
+            root.as_deref().map(std::path::Path::new),
+            |tool_name, files_found| {
+                let _ = app_progress.emit(
+                    "config-scan-progress",
+                    ConfigScanProgress {
+                        current_tool: tool_name.to_string(),
+                        files_found,
+                    },
+                );
+            },
+        );
+        let _ = app.emit(
+            "config-scan-complete",
+            ConfigScanComplete {
+                success: true,
+                files: Some(result),
+                error: None,
+            },
+        );
+    });
+    Ok(())
 }
 
 #[tauri::command]

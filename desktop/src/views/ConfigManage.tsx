@@ -1,7 +1,8 @@
 import type { CSSProperties } from 'react';
 import type { ReactNode } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { open } from '@tauri-apps/plugin-dialog';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -30,6 +31,17 @@ function langFromPath(path: string): string {
   if (lower.endsWith('.md')) return 'markdown';
   return 'text';
 }
+
+type ConfigScanProgress = {
+  currentTool: string;
+  filesFound: number;
+};
+
+type ConfigScanComplete = {
+  success: boolean;
+  files?: ScannedConfigFile[];
+  error?: string;
+};
 
 type Props = {
   onError: (msg: string | null) => void;
@@ -64,6 +76,9 @@ export function ConfigManage({ onError }: Props) {
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [hostPrefix, setHostPrefix] = useState('');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [scanProgress, setScanProgress] = useState<ConfigScanProgress | null>(null);
+  const unlistenProgressRef = useRef<UnlistenFn | null>(null);
+  const unlistenCompleteRef = useRef<UnlistenFn | null>(null);
 
   useEffect(() => {
     invoke<string>('get_hostname').then(setHostPrefix).catch(() => {});
@@ -71,55 +86,65 @@ export function ConfigManage({ onError }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    invoke<ScannedConfigFile[]>('config_scan_all', { projectRoot: null })
-      .then((data) => {
-        if (!cancelled) {
-          setList(data);
-          onError(null);
-        }
-      })
-      .catch((e) => {
-        if (!cancelled) {
-          onError(e instanceof Error ? e.message : String(e));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+
+    const setupListeners = async () => {
+      unlistenProgressRef.current?.();
+      unlistenCompleteRef.current?.();
+      unlistenProgressRef.current = await listen<ConfigScanProgress>('config-scan-progress', (e) => {
+        setScanProgress(e.payload);
       });
+      unlistenCompleteRef.current = await listen<ConfigScanComplete>('config-scan-complete', (e) => {
+        const { success, files, error } = e.payload;
+        setLoading(false);
+        setScanProgress(null);
+        if (success && files) {
+          setList(files);
+          onError(null);
+        } else if (error) {
+          onError(error);
+        }
+      });
+    };
+
+    setupListeners().then(() => {
+      if (cancelled) return;
+      setLoading(true);
+      setScanProgress({ currentTool: '准备中…', filesFound: 0 });
+      invoke('config_scan_all', { projectRoot: null }).catch((err) => {
+        if (!cancelled) {
+          setLoading(false);
+          setScanProgress(null);
+          onError(err instanceof Error ? err.message : String(err));
+        }
+      });
+    });
+
     return () => {
       cancelled = true;
+      unlistenProgressRef.current?.();
+      unlistenCompleteRef.current?.();
     };
   }, []);
+
+  const runScan = (projectRoot: string | null) => {
+    setLoading(true);
+    setSyncMsg(null);
+    setScanProgress({ currentTool: '准备中…', filesFound: 0 });
+    invoke('config_scan_all', { projectRoot }).catch((err) => {
+      setLoading(false);
+      setScanProgress(null);
+      onError(err instanceof Error ? err.message : String(err));
+    });
+  };
 
   const scanProject = async () => {
     const selected = await open({ directory: true });
     if (!selected || Array.isArray(selected)) return;
-    setLoading(true);
-    setSyncMsg(null);
-    try {
-      const data = await invoke<ScannedConfigFile[]>('config_scan_all', { projectRoot: selected });
-      setList(data);
-      onError(null);
-    } catch (e) {
-      onError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
+    runScan(selected);
   };
 
   const scanHome = async () => {
-    setLoading(true);
-    setSyncMsg(null);
-    try {
-      const data = await invoke<ScannedConfigFile[]>('config_scan_all', { projectRoot: null });
-      setList(data);
-      onError(null);
-    } catch (e) {
-      onError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
+    runScan(null);
   };
 
   const openDrawer = async (file: ScannedConfigFile) => {
@@ -366,6 +391,27 @@ export function ConfigManage({ onError }: Props) {
             </button>
           </div>
         </div>
+        {loading && scanProgress && (
+          <div
+            className="scan-progress-bar"
+            style={{
+              padding: '8px 16px',
+              fontSize: 12,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 4,
+            }}
+          >
+            <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+              <span className="scanning-dot" />
+              <span>
+                正在扫描 <strong>{scanProgress.currentTool}</strong>，已发现{' '}
+                <strong>{scanProgress.filesFound}</strong> 个配置文件
+              </span>
+            </div>
+          </div>
+        )}
+
         <div className="panel-body">
           {syncMsg && (
             <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>{syncMsg}</div>

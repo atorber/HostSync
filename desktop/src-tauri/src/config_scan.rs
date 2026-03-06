@@ -232,12 +232,28 @@ pub fn scan_home() -> Vec<ScannedConfigFile> {
     out
 }
 
-/// 扫描项目 + 主目录
+/// 扫描项目 + 主目录（无进度回调）
+#[allow(dead_code)]
 pub fn scan_all(project_root: Option<&Path>) -> Vec<ScannedConfigFile> {
+    scan_all_with_progress(project_root, |_, _| {})
+}
+
+/// 带进度回调：每扫完一个 tool 调用 on_progress(tool_name, files_count)
+pub fn scan_all_with_progress<F>(project_root: Option<&Path>, mut on_progress: F) -> Vec<ScannedConfigFile>
+where
+    F: FnMut(&str, usize),
+{
     let mut out = Vec::new();
     if let Some(root) = project_root {
-        out.extend(scan_project(root));
+        for tool in PROJECT_RULES {
+            out.extend(scan_tool(root, tool));
+            on_progress(tool.name, out.len());
+        }
     }
-    out.extend(scan_home());
+    let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
+    for tool in HOME_RULES {
+        out.extend(scan_tool(&home, tool));
+        on_progress(tool.name, out.len());
+    }
     out
 }

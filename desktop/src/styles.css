@@ -87,23 +87,39 @@ a {
   flex: 1;
   min-width: 0;
   margin-left: var(--sidebar-w);
-  overflow: auto;
   padding: 12px;
   height: calc(100vh - var(--topbar-h));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.main-content > * {
+  flex: 1;
+  min-height: 0;
 }
 
 .content-single {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-width: 900px;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.content-single .flex-1 {
+  flex: 1;
+  min-width: 0;
 }
 
 .content-three {
   display: grid;
   grid-template-columns: 240px 340px 1fr;
+  grid-template-rows: minmax(0, 1fr);
   gap: 12px;
   min-height: 0;
+  height: 100%;
 }
 
 .drawer-backdrop {
@@ -234,6 +250,7 @@ a {
 }
 
 .panel-header {
+  flex-shrink: 0;
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.03);
@@ -250,6 +267,7 @@ a {
 }
 
 .panel-body {
+  flex: 1;
   padding: 10px 12px;
   overflow: auto;
   min-height: 0;
@@ -354,6 +372,7 @@ a {
 
 /* scanning progress bar: 与全局深色主题一致，保证文字可读 */
 .scan-progress-bar {
+  flex-shrink: 0;
   background: var(--panel);
   border-bottom: 1px solid var(--border);
   color: var(--text);
