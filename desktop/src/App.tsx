@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import packageJson from '../package.json';
 import { ApiManage } from './views/ApiManage';
 import { ConfigManage } from './views/ConfigManage';
 import { HostManage } from './views/HostManage';
@@ -65,7 +66,7 @@ export function App() {
       <div className="topbar">
         <div className="brand">
           <div className="brand-title">HostSync</div>
-          <div className="brand-sub">配置管理 · 桌面端</div>
+          <div className="brand-sub">配置管理 · 桌面端 · v{packageJson.version}</div>
         </div>
         <div className="topbar-actions">
           {configPath && (
