@@ -29,6 +29,8 @@ pub struct ApiKeyEntry {
     pub base_url: Option<String>,
     #[serde(default)]
     pub remark: Option<String>,
+    #[serde(default)]
+    pub model: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -75,6 +77,7 @@ pub fn api_key_create(
     api_key: String,
     base_url: Option<String>,
     remark: Option<String>,
+    model: Option<String>,
 ) -> Result<ApiKeyEntry, String> {
     let mut entries = api_keys_load()?;
     let now = now_ts();
@@ -86,6 +89,7 @@ pub fn api_key_create(
         api_key,
         base_url,
         remark,
+        model,
         created_at: now,
         updated_at: now,
     };
@@ -101,6 +105,7 @@ pub fn api_key_update(
     api_key: Option<String>,
     base_url: Option<String>,
     remark: Option<String>,
+    model: Option<String>,
 ) -> Result<ApiKeyEntry, String> {
     let mut entries = api_keys_load()?;
     let pos = entries.iter().position(|e| e.id == id).ok_or("未找到该记录")?;
@@ -120,6 +125,9 @@ pub fn api_key_update(
     }
     if let Some(r) = remark {
         e.remark = if r.is_empty() { None } else { Some(r) };
+    }
+    if let Some(m) = model {
+        e.model = if m.is_empty() { None } else { Some(m) };
     }
     e.updated_at = now;
     let out = e.clone();

@@ -224,8 +224,9 @@ fn api_create(
     api_key: String,
     base_url: Option<String>,
     remark: Option<String>,
+    model: Option<String>,
 ) -> Result<store::ApiKeyEntry, String> {
-    store::api_key_create(name, kind, api_key, base_url, remark)
+    store::api_key_create(name, kind, api_key, base_url, remark, model)
 }
 
 #[tauri::command]
@@ -236,13 +237,122 @@ fn api_update(
     api_key: Option<String>,
     base_url: Option<String>,
     remark: Option<String>,
+    model: Option<String>,
 ) -> Result<store::ApiKeyEntry, String> {
-    store::api_key_update(&id, name, kind, api_key, base_url, remark)
+    store::api_key_update(&id, name, kind, api_key, base_url, remark, model)
 }
 
 #[tauri::command]
 fn api_delete(id: String) -> Result<(), String> {
     store::api_key_delete(&id)
+}
+
+// ---------- API Key 测试 ----------
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiTestResult {
+    pub ok: bool,
+    pub message: String,
+}
+
+#[tauri::command]
+async fn api_test(kind: String, api_key: String, base_url: Option<String>, model: Option<String>) -> Result<ApiTestResult, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    // 如果指定了 model，发送 chat completion 请求验证端到端可用性
+    // 否则仅 GET /models 验证连通性
+    let has_model = model.as_ref().map_or(false, |m| !m.trim().is_empty());
+
+    let req = if has_model {
+        let model_name = model.unwrap();
+        match kind.as_str() {
+            "anthropic" => {
+                let base = base_url
+                    .as_deref()
+                    .unwrap_or("https://api.anthropic.com");
+                let url = format!("{}/v1/messages", base.trim_end_matches('/'));
+                let body = serde_json::json!({
+                    "model": model_name,
+                    "max_tokens": 1,
+                    "messages": [{"role": "user", "content": "hi"}]
+                });
+                client
+                    .post(&url)
+                    .header("x-api-key", &api_key)
+                    .header("anthropic-version", "2023-06-01")
+                    .header("content-type", "application/json")
+                    .body(body.to_string())
+            }
+            _ => {
+                let base = base_url
+                    .as_deref()
+                    .unwrap_or("https://api.openai.com/v1");
+                let url = format!("{}/chat/completions", base.trim_end_matches('/'));
+                let body = serde_json::json!({
+                    "model": model_name,
+                    "max_tokens": 1,
+                    "messages": [{"role": "user", "content": "hi"}]
+                });
+                client
+                    .post(&url)
+                    .header("Authorization", format!("Bearer {}", api_key))
+                    .header("content-type", "application/json")
+                    .body(body.to_string())
+            }
+        }
+    } else {
+        match kind.as_str() {
+            "anthropic" => {
+                let base = base_url
+                    .as_deref()
+                    .unwrap_or("https://api.anthropic.com");
+                let url = format!("{}/v1/models", base.trim_end_matches('/'));
+                client
+                    .get(&url)
+                    .header("x-api-key", &api_key)
+                    .header("anthropic-version", "2023-06-01")
+            }
+            _ => {
+                let base = base_url
+                    .as_deref()
+                    .unwrap_or("https://api.openai.com/v1");
+                let url = format!("{}/models", base.trim_end_matches('/'));
+                client
+                    .get(&url)
+                    .header("Authorization", format!("Bearer {}", api_key))
+            }
+        }
+    };
+
+    match req.send().await {
+        Ok(resp) => {
+            let status = resp.status().as_u16();
+            if status >= 200 && status < 300 {
+                Ok(ApiTestResult {
+                    ok: true,
+                    message: if has_model {
+                        format!("模型可用 ({})", status)
+                    } else {
+                        format!("连接成功 ({})", status)
+                    },
+                })
+            } else {
+                let body = resp.text().await.unwrap_or_default();
+                let detail = if body.len() > 200 { &body[..200] } else { &body };
+                Ok(ApiTestResult {
+                    ok: false,
+                    message: format!("HTTP {} — {}", status, detail),
+                })
+            }
+        }
+        Err(e) => Ok(ApiTestResult {
+            ok: false,
+            message: format!("请求失败: {}", e),
+        }),
+    }
 }
 
 // ---------- Skill 管理 ----------
@@ -772,6 +882,7 @@ pub fn run() {
             api_create,
             api_update,
             api_delete,
+            api_test,
             skill_scan_roots,
             skill_list,
             skill_read_content,

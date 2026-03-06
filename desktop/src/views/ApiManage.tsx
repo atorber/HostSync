@@ -8,6 +8,7 @@ export type ApiKeyEntry = {
   apiKey: string;
   baseUrl?: string;
   remark?: string;
+  model?: string;
   createdAt: number;
   updatedAt: number;
 };
@@ -21,11 +22,16 @@ export function ApiManage({ onError }: Props) {
   const [loading, setLoading] = useState(true);
   const [drawerId, setDrawerId] = useState<string | null>(null);
   const [drawerNew, setDrawerNew] = useState(false);
-  const [form, setForm] = useState({ name: '', kind: 'openai', apiKey: '', baseUrl: '', remark: '' });
+  const [form, setForm] = useState({ name: '', kind: 'openai', apiKey: '', baseUrl: '', remark: '', testModel: '' });
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [pulling, setPulling] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [listTesting, setListTesting] = useState<string | null>(null);
+  const [listTestResults, setListTestResults] = useState<Record<string, { ok: boolean; message: string }>>({});
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -47,7 +53,8 @@ export function ApiManage({ onError }: Props) {
   const openNew = () => {
     setDrawerNew(true);
     setDrawerId(null);
-    setForm({ name: '', kind: 'openai', apiKey: '', baseUrl: '', remark: '' });
+    setForm({ name: '', kind: 'openai', apiKey: '', baseUrl: '', remark: '', testModel: '' });
+    setTestResult(null);
   };
 
   const openEdit = (e: ApiKeyEntry) => {
@@ -59,7 +66,9 @@ export function ApiManage({ onError }: Props) {
       apiKey: e.apiKey,
       baseUrl: e.baseUrl ?? '',
       remark: e.remark ?? '',
+      testModel: e.model ?? '',
     });
+    setTestResult(null);
   };
 
   const closeDrawer = () => {
@@ -77,6 +86,7 @@ export function ApiManage({ onError }: Props) {
           apiKey: form.apiKey,
           baseUrl: form.baseUrl || null,
           remark: form.remark || null,
+          model: form.testModel || null,
         });
       } else if (drawerId) {
         await invoke('api_update', {
@@ -86,6 +96,7 @@ export function ApiManage({ onError }: Props) {
           apiKey: form.apiKey,
           baseUrl: form.baseUrl || null,
           remark: form.remark || null,
+          model: form.testModel || null,
         });
       }
       onError(null);
@@ -141,6 +152,50 @@ export function ApiManage({ onError }: Props) {
     }
   };
 
+  const testApi = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const result = await invoke<{ ok: boolean; message: string }>('api_test', {
+        kind: form.kind,
+        apiKey: form.apiKey,
+        baseUrl: form.baseUrl || null,
+        model: form.testModel || null,
+      });
+      setTestResult(result);
+    } catch (e) {
+      setTestResult({ ok: false, message: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const testApiFromList = async (e: React.MouseEvent, entry: ApiKeyEntry) => {
+    e.stopPropagation();
+    setListTesting(entry.id);
+    setListTestResults((prev) => {
+      const next = { ...prev };
+      delete next[entry.id];
+      return next;
+    });
+    try {
+      const result = await invoke<{ ok: boolean; message: string }>('api_test', {
+        kind: entry.kind,
+        apiKey: entry.apiKey,
+        baseUrl: entry.baseUrl || null,
+        model: entry.model || null,
+      });
+      setListTestResults((prev) => ({ ...prev, [entry.id]: result }));
+    } catch (err) {
+      setListTestResults((prev) => ({
+        ...prev,
+        [entry.id]: { ok: false, message: err instanceof Error ? err.message : String(err) },
+      }));
+    } finally {
+      setListTesting(null);
+    }
+  };
+
   return (
     <div className="content-single">
       <div className="panel flex-1">
@@ -173,12 +228,66 @@ export function ApiManage({ onError }: Props) {
                   key={e.id}
                   className={`item ${drawerId === e.id ? 'item-active' : ''}`}
                   onClick={() => openEdit(e)}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                 >
-                  <span style={{ fontWeight: 600 }}>{e.name}</span>
-                  <span className="muted" style={{ fontSize: 12 }}>
-                    {e.kind}
-                    {e.baseUrl ? ` · ${e.baseUrl}` : ''}
-                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ fontWeight: 600 }}>{e.name}</span>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        marginLeft: 8,
+                        padding: '1px 6px',
+                        borderRadius: 3,
+                        color: listTestResults[e.id]
+                          ? listTestResults[e.id].ok ? '#22c55e' : '#ef4444'
+                          : '#a0a0a0',
+                        border: `1px solid ${listTestResults[e.id]
+                          ? listTestResults[e.id].ok ? '#22c55e' : '#ef4444'
+                          : '#666'}`,
+                      }}
+                    >
+                      {listTesting === e.id ? '检测中' : listTestResults[e.id]
+                        ? listTestResults[e.id].ok ? '正常' : '异常'
+                        : '未知'}
+                    </span>
+                    <span className="muted" style={{ fontSize: 12, marginLeft: 6 }}>
+                      {e.kind}
+                      {e.baseUrl ? ` · ${e.baseUrl}` : ''}
+                    </span>
+                    {listTestResults[e.id] && !listTestResults[e.id].ok && (
+                      <div style={{ fontSize: 11, marginTop: 2, color: '#ef4444', wordBreak: 'break-all' }}>
+                        {listTestResults[e.id].message}
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    className="btn"
+                    style={{ fontSize: 12, padding: '2px 8px', marginLeft: 8, flexShrink: 0 }}
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      const info: Record<string, string> = {
+                        name: e.name,
+                        kind: e.kind,
+                        apiKey: e.apiKey,
+                      };
+                      if (e.baseUrl) info.baseUrl = e.baseUrl;
+                      if (e.model) info.model = e.model;
+                      if (e.remark) info.remark = e.remark;
+                      navigator.clipboard.writeText(JSON.stringify(info, null, 2));
+                      setCopiedId(e.id);
+                      setTimeout(() => setCopiedId((prev) => (prev === e.id ? null : prev)), 2000);
+                    }}
+                  >
+                    {copiedId === e.id ? '已复制' : '复制'}
+                  </button>
+                  <button
+                    className="btn"
+                    style={{ fontSize: 12, padding: '2px 8px', marginLeft: 8, flexShrink: 0 }}
+                    disabled={listTesting === e.id}
+                    onClick={(ev) => testApiFromList(ev, e)}
+                  >
+                    {listTesting === e.id ? '测试中…' : '测试'}
+                  </button>
                 </div>
               ))}
             </div>
@@ -221,7 +330,6 @@ export function ApiManage({ onError }: Props) {
                 <span className="muted" style={{ fontSize: 12 }}>API Key</span>
                 <input
                   className="search mono"
-                  type="password"
                   value={form.apiKey}
                   onChange={(ev) => setForm((f) => ({ ...f, apiKey: ev.target.value }))}
                   placeholder="sk-..."
@@ -244,9 +352,25 @@ export function ApiManage({ onError }: Props) {
                   onChange={(ev) => setForm((f) => ({ ...f, remark: ev.target.value }))}
                 />
               </label>
+              <label>
+                <span className="muted" style={{ fontSize: 12 }}>测试 Model（可选，不填仅验证连通性）</span>
+                <input
+                  className="search mono"
+                  value={form.testModel}
+                  onChange={(ev) => setForm((f) => ({ ...f, testModel: ev.target.value }))}
+                  placeholder={form.kind === 'anthropic' ? 'claude-sonnet-4-20250514' : 'gpt-4o-mini'}
+                />
+              </label>
               <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                 <button className="btn btn-primary" onClick={save} disabled={saving || !form.name.trim() || !form.apiKey.trim()}>
                   {saving ? '保存中…' : '保存'}
+                </button>
+                <button
+                  className="btn"
+                  onClick={testApi}
+                  disabled={testing || !form.apiKey.trim()}
+                >
+                  {testing ? '测试中…' : '测试'}
                 </button>
                 {!drawerNew && drawerId && (
                   <button className="btn btn-danger" onClick={() => drawerId && remove(drawerId)}>
@@ -254,6 +378,18 @@ export function ApiManage({ onError }: Props) {
                   </button>
                 )}
               </div>
+              {testResult && (
+                <div
+                  style={{
+                    fontSize: 12,
+                    marginTop: 4,
+                    color: testResult.ok ? '#22c55e' : '#ef4444',
+                    wordBreak: 'break-all',
+                  }}
+                >
+                  {testResult.message}
+                </div>
+              )}
             </div>
           </div>
         </div>
