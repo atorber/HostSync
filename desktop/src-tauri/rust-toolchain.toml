@@ -1,0 +1,4 @@
+# 桌面端构建需 Rust 1.91+（aws-sdk-s3 等依赖要求）
+# 在此目录执行 cargo 时，rustup 会使用或自动安装该版本
+[toolchain]
+channel = "1.91"

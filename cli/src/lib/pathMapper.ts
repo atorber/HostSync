@@ -36,7 +36,7 @@ function encodeKeyPath(p: string): string {
 export function getRemotePrefix(cwd: string = process.cwd()): string {
   const hostname = normalizeHostnameForKey(os.hostname());
   const normalizedPath = normalizeAbsolutePathToPosixNoLeadingSlash(cwd);
-  return `${hostname}/${encodeKeyPath(normalizedPath)}`;
+  return `configs/${hostname}/${encodeKeyPath(normalizedPath)}`;
 }
 
 export function validateRemoteKey(remoteKey: string): boolean {

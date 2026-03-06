@@ -3,12 +3,15 @@
   "private": true,
   "workspaces": [
     "cli",
-    "web-ui"
+    "web-ui",
+    "desktop"
   ],
   "scripts": {
     "build": "npm -w web-ui run build && npm -w cli run build",
     "dev:web": "npm -w web-ui run dev",
     "dev:cli": "npm -w cli run dev --",
+    "dev:desktop": "cd desktop && npm run tauri dev",
+    "build:desktop": "npm -w desktop run tauri build",
     "typecheck": "npm -w web-ui run typecheck && npm -w cli run typecheck"
   }
 }
