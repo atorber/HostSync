@@ -31,7 +31,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: desktop/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -43,8 +43,7 @@ jobs:
         with:
           workspaces: desktop/src-tauri -> target
 
-      - name: Install frontend dependencies
-        working-directory: desktop
+      - name: Install dependencies
         run: npm ci
 
       - name: Build and upload Tauri app
