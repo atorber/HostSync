@@ -1,6 +1,6 @@
 [package]
 name = "hostsync-desktop"
-version = "0.2.0"
+version = "0.3.0"
 description = "HostSync 桌面端 — S3 主机分层配置同步"
 authors = ["HostSync"]
 edition = "2021"
