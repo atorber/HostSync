@@ -254,37 +254,63 @@ struct SkillScanProgress {
     current_path: String,
 }
 
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SkillScanComplete {
+    success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+}
+
 #[tauri::command]
-fn skill_scan_roots(
-    app: tauri::AppHandle,
-    roots: Vec<String>,
-) -> Result<Vec<store::SkillIndexEntry>, String> {
+fn skill_scan_roots(app: tauri::AppHandle, roots: Vec<String>) -> Result<(), String> {
     use std::path::Path;
+    use std::thread;
     use tauri::Emitter;
 
-    let app_clone = app.clone();
-    let progress = skill::ScanProgress::new(move |dirs, found, path: &str| {
-        let _ = app_clone.emit(
-            "skill-scan-progress",
-            SkillScanProgress {
-                dirs_scanned: dirs,
-                found_count: found,
-                current_path: path.to_string(),
+    thread::spawn(move || {
+        let app_progress = app.clone();
+        let progress = skill::ScanProgress::new(move |dirs, found, path: &str| {
+            let _ = app_progress.emit(
+                "skill-scan-progress",
+                SkillScanProgress {
+                    dirs_scanned: dirs,
+                    found_count: found,
+                    current_path: path.to_string(),
+                },
+            );
+        });
+
+        let result = (|| -> Result<(), String> {
+            let mut all = Vec::new();
+            for r in &roots {
+                let path = Path::new(r);
+                if path.exists() {
+                    let list = skill::scan_root(path, &progress)?;
+                    all.push(list);
+                }
+            }
+            let merged = skill::merge_scan_results(all);
+            store::skill_index_merge_replace(merged)?;
+            Ok(())
+        })();
+
+        let _ = app.emit(
+            "skill-scan-complete",
+            match &result {
+                Ok(()) => SkillScanComplete {
+                    success: true,
+                    error: None,
+                },
+                Err(e) => SkillScanComplete {
+                    success: false,
+                    error: Some(e.clone()),
+                },
             },
         );
     });
 
-    let mut all = Vec::new();
-    for r in roots {
-        let path = Path::new(&r);
-        if path.exists() {
-            let list = skill::scan_root(path, &progress)?;
-            all.push(list);
-        }
-    }
-    let merged = skill::merge_scan_results(all);
-    store::skill_index_merge_replace(merged.clone())?;
-    Ok(merged)
+    Ok(())
 }
 
 #[tauri::command]

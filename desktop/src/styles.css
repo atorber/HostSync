@@ -9,6 +9,8 @@
   --accent: #4f8cff;
   --danger: #ff5c5c;
   --shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+  --topbar-h: 52px;
+  --sidebar-w: 160px;
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial,
     "Noto Sans", "Liberation Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
 }
@@ -35,18 +37,23 @@ a {
 .app {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  min-height: 100vh;
 }
 
 .app-body {
   display: flex;
   flex: 1;
   min-height: 0;
+  margin-top: var(--topbar-h);
 }
 
 .sidebar {
-  width: 160px;
-  flex-shrink: 0;
+  position: fixed;
+  top: var(--topbar-h);
+  left: 0;
+  bottom: 0;
+  width: var(--sidebar-w);
+  z-index: 10;
   border-right: 1px solid var(--border);
   background: rgba(0, 0, 0, 0.15);
   padding: 8px 0;
@@ -79,8 +86,10 @@ a {
 .main-content {
   flex: 1;
   min-width: 0;
+  margin-left: var(--sidebar-w);
   overflow: auto;
   padding: 12px;
+  height: calc(100vh - var(--topbar-h));
 }
 
 .content-single {
@@ -136,6 +145,12 @@ a {
 }
 
 .topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--topbar-h);
+  z-index: 11;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -337,13 +352,24 @@ a {
   color: var(--muted);
 }
 
+/* scanning progress bar: 与全局深色主题一致，保证文字可读 */
+.scan-progress-bar {
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+
+.scan-progress-bar .muted {
+  color: var(--muted);
+}
+
 /* scanning progress indicator */
 .scanning-dot {
   display: inline-block;
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--primary, #3b82f6);
+  background: var(--accent);
   animation: scanning-pulse 1s ease-in-out infinite;
   flex-shrink: 0;
 }
@@ -351,4 +377,48 @@ a {
 @keyframes scanning-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.4; transform: scale(0.75); }
+}
+
+/* tree view (skills) */
+.tree {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.tree-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.tree-active {
+  background: rgba(79, 140, 255, 0.18);
+}
+
+.tree-icon {
+  width: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.9;
+}
+
+.tree-caret-open {
+  transform: rotate(90deg);
+}
+
+.tree-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

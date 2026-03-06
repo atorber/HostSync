@@ -38,7 +38,7 @@ const PROJECT_RULES: &[ToolRule] = &[
         name: "Cursor",
         scope: "project",
         files: &[".cursorrules"],
-        dirs: &[".cursor/rules"],
+        dirs: &[".cursor"],
     },
     ToolRule {
         name: "GitHub Copilot",
@@ -121,6 +121,18 @@ const HOME_RULES: &[ToolRule] = &[
         scope: "home",
         files: &[".gemini/GEMINI.md", ".gemini/settings.json"],
         dirs: &[],
+    },
+    ToolRule {
+        name: "Cursor",
+        scope: "home",
+        files: &[],
+        dirs: &[".cursor"],
+    },
+    ToolRule {
+        name: "OpenClaw",
+        scope: "home",
+        files: &[".openclaw/rules.md", ".openclaw/config.json"],
+        dirs: &[".openclaw"],
     },
 ];
 

@@ -189,6 +189,20 @@ const HOME_TOOLS: ToolConfig[] = [
     scope: 'home',
     format: 'Markdown / JSON',
   },
+  {
+    name: 'Cursor',
+    files: [],
+    dirs: ['.cursor'],
+    scope: 'home',
+    format: 'Markdown / MDC',
+  },
+  {
+    name: 'OpenClaw',
+    files: ['.openclaw/rules.md', '.openclaw/config.json'],
+    dirs: ['.openclaw'],
+    scope: 'home',
+    format: 'Markdown / JSON',
+  },
 ];
 
 /* ------------------------------------------------------------------ */

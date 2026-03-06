@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
-import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -34,6 +35,22 @@ type Props = {
   onError: (msg: string | null) => void;
 };
 
+type TreeNode =
+  | {
+      type: 'dir';
+      key: string;
+      name: string;
+      path: string;
+      children: TreeNode[];
+    }
+  | {
+      type: 'file';
+      key: string;
+      name: string;
+      path: string;
+      file: ScannedConfigFile;
+    };
+
 export function ConfigManage({ onError }: Props) {
   const [list, setList] = useState<ScannedConfigFile[]>([]);
   const [loading, setLoading] = useState(false);
@@ -46,6 +63,7 @@ export function ConfigManage({ onError }: Props) {
   const [pulling, setPulling] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [hostPrefix, setHostPrefix] = useState('');
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     invoke<string>('get_hostname').then(setHostPrefix).catch(() => {});
@@ -204,6 +222,130 @@ export function ConfigManage({ onError }: Props) {
     }
   };
 
+  const tree = useMemo<TreeNode[]>(() => {
+    const byTool = new Map<string, ScannedConfigFile[]>();
+    for (const f of list) {
+      const key = f.tool || 'Unknown';
+      const arr = byTool.get(key) ?? [];
+      arr.push(f);
+      byTool.set(key, arr);
+    }
+
+    const roots: TreeNode[] = [];
+    const tools = Array.from(byTool.keys()).sort((a, b) => a.localeCompare(b));
+    for (const tool of tools) {
+      const toolNode: Extract<TreeNode, { type: 'dir' }> = {
+        type: 'dir',
+        key: `tool:${tool}`,
+        name: tool,
+        path: tool,
+        children: [],
+      };
+
+      const files = (byTool.get(tool) ?? []).slice().sort((a, b) => a.relPath.localeCompare(b.relPath));
+      for (const f of files) {
+        const rel = (f.relPath || f.absPath).replace(/\\/g, '/');
+        const parts = rel.split('/').filter(Boolean);
+        if (parts.length === 0) continue;
+
+        let cursor = toolNode;
+        for (let i = 0; i < parts.length; i++) {
+          const part = parts[i];
+          const isLast = i === parts.length - 1;
+          const nextPath = cursor.path === tool ? part : `${cursor.path}/${part}`;
+          if (isLast) {
+            cursor.children.push({
+              type: 'file',
+              key: `file:${f.absPath}`,
+              name: part,
+              path: f.absPath,
+              file: f,
+            });
+          } else {
+            let child = cursor.children.find((c) => c.type === 'dir' && c.name === part) as
+              | Extract<TreeNode, { type: 'dir' }>
+              | undefined;
+            if (!child) {
+              child = { type: 'dir', key: `dir:${tool}:${nextPath}`, name: part, path: nextPath, children: [] };
+              cursor.children.push(child);
+            }
+            cursor = child;
+          }
+        }
+      }
+
+      const sortChildren = (node: Extract<TreeNode, { type: 'dir' }>) => {
+        node.children.sort((a, b) => {
+          if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+          return a.name.localeCompare(b.name);
+        });
+        for (const c of node.children) if (c.type === 'dir') sortChildren(c);
+      };
+      sortChildren(toolNode);
+      roots.push(toolNode);
+    }
+
+    return roots;
+  }, [list]);
+
+  const isExpanded = (key: string, defaultOpen = false) => {
+    const v = expanded[key];
+    return v === undefined ? defaultOpen : v;
+  };
+
+  const toggleExpanded = (key: string) => {
+    setExpanded((prev) => ({ ...prev, [key]: !isExpanded(key) }));
+  };
+
+  const renderNode = (node: TreeNode, level: number, defaultOpen: boolean): ReactNode => {
+    if (node.type === 'file') {
+      const active = drawerFile?.absPath === node.file.absPath;
+      return (
+        <div
+          key={node.key}
+          className={`tree-row tree-file ${active ? 'tree-active' : ''}`}
+          style={{ paddingLeft: 12 + level * 14, justifyContent: 'space-between' }}
+          onClick={() => openDrawer(node.file)}
+          title={node.file.absPath}
+        >
+          <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
+            <span className="tree-icon mono muted">-</span>
+            <span className="tree-name">{node.name}</span>
+          </div>
+          <div style={{ display: 'flex', gap: 4, flexShrink: 0 }} onClick={(ev) => ev.stopPropagation()}>
+            <button className="btn" style={{ fontSize: 11, padding: '2px 8px' }} onClick={() => pullSingle(node.file.absPath)} disabled={pulling}>
+              拉取
+            </button>
+            <button className="btn" style={{ fontSize: 11, padding: '2px 8px' }} onClick={() => pushSingle(node.file.absPath)} disabled={pushing}>
+              推送
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    const open = isExpanded(node.key, defaultOpen);
+    return (
+      <div key={node.key}>
+        <div
+          className="tree-row tree-dir"
+          style={{ paddingLeft: 12 + level * 14 }}
+          onClick={() => toggleExpanded(node.key)}
+          title={node.path}
+        >
+          <span className={`tree-icon mono muted ${open ? 'tree-caret-open' : ''}`}>{'>'}</span>
+          <span className="tree-name" style={{ fontWeight: 600 }}>
+            {node.name}
+          </span>
+          <span className="mono muted" style={{ marginLeft: 8, fontSize: 11 }}>
+            {node.children.length}
+          </span>
+        </div>
+        {open && <div>{node.children.map((c) => renderNode(c, level + 1, false))}</div>}
+      </div>
+    );
+  };
+
   return (
     <div className="content-single">
       <div className="panel flex-1">
@@ -232,25 +374,7 @@ export function ConfigManage({ onError }: Props) {
             <div className="muted">点击「选择项目目录扫描」或「扫描主目录」发现 Claude Code、Cursor、Codex 等配置文件</div>
           )}
           {list.length > 0 && (
-            <div className="list">
-              {list.map((f, i) => (
-                <div
-                  key={`${f.absPath}-${i}`}
-                  className={`item ${drawerFile?.absPath === f.absPath ? 'item-active' : ''}`}
-                  onClick={() => openDrawer(f)}
-                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                >
-                  <div style={{ minWidth: 0, overflow: 'hidden' }}>
-                    <span style={{ fontWeight: 600 }}>{f.tool}</span>
-                    <span className="mono muted" style={{ fontSize: 11, marginLeft: 8 }}>{f.relPath}</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }} onClick={(ev) => ev.stopPropagation()}>
-                    <button className="btn" style={{ fontSize: 11, padding: '2px 8px' }} onClick={() => pullSingle(f.absPath)} disabled={pulling}>拉取</button>
-                    <button className="btn" style={{ fontSize: 11, padding: '2px 8px' }} onClick={() => pushSingle(f.absPath)} disabled={pushing}>推送</button>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <div className="tree">{tree.map((n) => renderNode(n, 0, true))}</div>
           )}
         </div>
       </div>

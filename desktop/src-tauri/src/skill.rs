@@ -23,6 +23,14 @@ const SKIP_DIRS: &[&str] = &[
     "Movies",
     "Pictures",
     "Public",
+    ".Trash",
+    ".npm",
+    ".yarn",
+    ".docker",
+    ".vagrant",
+    ".rustup",
+    "go",
+    "snap",
 ];
 
 fn should_skip_dir(name: &str) -> bool {
@@ -75,7 +83,8 @@ impl ScanProgress {
     fn tick_dir(&self, dir_path: &str) {
         let dirs = self.dirs_scanned.fetch_add(1, Ordering::Relaxed) + 1;
         let found = self.found_count.load(Ordering::Relaxed);
-        if dirs % 20 == 0 || dirs <= 5 {
+        // 每 2 个目录或每发现一个文件时推送，保证进度条及时更新
+        if dirs <= 3 || dirs % 2 == 0 {
             (self.on_progress)(dirs, found, dir_path);
         }
     }
